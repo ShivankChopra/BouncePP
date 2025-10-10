@@ -1,170 +1,187 @@
-#include <SDL3/SDL.h>
-#include <box2d/box2d.h>
-
-#include <array>
-#include <vector>
-#include <algorithm>
 #include <iostream>
+#include <vector>
+#include <box2d/box2d.h>
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_main.h>
 
-struct SimBox {
-    b2BodyId bodyId{};
-    float width{};
-    float height{};
-    SDL_FColor color{1.0f, 1.0f, 1.0f, 1.0f};
+constexpr int WINDOW_WIDTH = 800;
+constexpr int WINDOW_HEIGHT = 600;
+
+constexpr int BLOCK_WIDTH = 100;
+constexpr int BLOCK_HEIGHT = 100;
+
+constexpr int PLATFORM_WIDTH = 1000;
+constexpr int PLATFORM_HEIGHT = 10;
+
+static constexpr float PPM = 50.0f; // 50 pixels = 1 meter
+inline float px_to_m(const float px) { return px / PPM; }
+inline float m_to_px(const float m) { return m * PPM; }
+
+// rectangular movable boxes
+class MyBlocks {
+
+    SDL_FRect _rect{};
+    b2BodyDef _bodyDef;
+    b2ShapeDef _shapeDef;
+    b2Polygon _polygon;
+    b2BodyId _physicsBodyId;
+
+public:
+    MyBlocks(const float x, const float y, const b2WorldId worldId) {
+        const float center_x_m = px_to_m(x + BLOCK_WIDTH / 2.0f);
+        const float center_y_m = px_to_m(y + BLOCK_HEIGHT / 2.0f);
+
+        _bodyDef = b2DefaultBodyDef();
+        _bodyDef.type = b2_dynamicBody;
+        _bodyDef.position = {center_x_m, center_y_m};
+
+        _physicsBodyId = b2CreateBody(worldId, &_bodyDef);
+
+        _shapeDef = b2DefaultShapeDef();
+        _shapeDef.density = 20.0f;
+        _shapeDef.material.friction = 0.4f;
+        _shapeDef.material.restitution = 0.7f;
+
+        _polygon = b2MakeBox(px_to_m(BLOCK_WIDTH / 2.0f), px_to_m(BLOCK_HEIGHT / 2.0f));
+
+        b2CreatePolygonShape(_physicsBodyId, &_shapeDef, &_polygon);
+
+        _rect = {x, y, BLOCK_WIDTH, BLOCK_HEIGHT};
+    }
+
+    void UpdatePosition(const b2WorldId worldId) {
+        auto [x, y] = b2Body_GetPosition(_physicsBodyId);
+        _rect.x = m_to_px(x) - BLOCK_WIDTH / 2.0f;
+        _rect.y = m_to_px(y) - BLOCK_HEIGHT / 2.0f;
+    }
+
+    [[nodiscard]] const SDL_FRect& getRect() const {
+        return _rect;
+    }
 };
 
-namespace {
+// solid static platform
+class MyPlatform {
 
-constexpr float pixelsPerMeter = 100.0f;
+    SDL_FRect _rect{};
+    b2BodyDef _bodyDef;
+    b2ShapeDef _shapeDef;
+    b2Polygon _polygon;
+    b2BodyId _physicsBodyId;
 
-void drawBody(SDL_Renderer *renderer, b2BodyId bodyId, float width, float height, SDL_FColor color, int canvasHeight) {
-    if (!b2Body_IsValid(bodyId)) {
-        return;
+public:
+    MyPlatform(const float x, const float y, const b2WorldId worldId) {
+        const float center_x_m = px_to_m(x + PLATFORM_WIDTH / 2.0f);
+        const float center_y_m = px_to_m(y + PLATFORM_HEIGHT / 2.0f);
+
+        _bodyDef = b2DefaultBodyDef();
+        _bodyDef.position = {center_x_m, center_y_m};
+
+        _physicsBodyId = b2CreateBody(worldId, &_bodyDef);
+
+        _shapeDef = b2DefaultShapeDef();
+        _shapeDef.density = 0.0f;
+
+        _polygon = b2MakeBox(px_to_m(PLATFORM_WIDTH / 2.0f), px_to_m(PLATFORM_HEIGHT / 2.0f));
+
+        b2CreatePolygonShape(_physicsBodyId, &_shapeDef, &_polygon);
+
+        _rect = {x, y, PLATFORM_WIDTH, PLATFORM_HEIGHT};
     }
 
-    const float halfWidth = width * 0.5f;
-    const float halfHeight = height * 0.5f;
-    const std::array<b2Vec2, 4> localCorners{
-        b2Vec2{-halfWidth, -halfHeight},
-        b2Vec2{halfWidth, -halfHeight},
-        b2Vec2{halfWidth, halfHeight},
-        b2Vec2{-halfWidth, halfHeight},
-    };
-
-    std::array<SDL_Vertex, 4> vertices{};
-    for (std::size_t i = 0; i < localCorners.size(); ++i) {
-        const b2Vec2 worldPoint = b2Body_GetWorldPoint(bodyId, localCorners[i]);
-        vertices[i].position.x = worldPoint.x * pixelsPerMeter;
-        vertices[i].position.y = static_cast<float>(canvasHeight) - worldPoint.y * pixelsPerMeter;
-        vertices[i].color = color;
-        vertices[i].tex_coord = {0.0f, 0.0f};
+    [[nodiscard]] const SDL_FRect& getRect() const {
+        return _rect;
     }
+};
 
-    const int indices[6] = {0, 1, 2, 0, 2, 3};
-    SDL_RenderGeometry(renderer, nullptr, vertices.data(), static_cast<int>(vertices.size()), indices, 6);
-}
-
-} // namespace
-
-int main() {
-    if (!SDL_Init(SDL_INIT_VIDEO)) {
-        std::cerr << "SDL_Init failed: " << SDL_GetError() << '\n';
+int main(int argc, char* argv[])
+{
+    if (!SDL_InitSubSystem(SDL_INIT_VIDEO))
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
         return 1;
     }
 
-    SDL_Window* window = SDL_CreateWindow("Bounce++ Demo", 800, 600, SDL_WINDOW_RESIZABLE);
-    if (!window) {
-        std::cerr << "SDL_CreateWindow failed: " << SDL_GetError() << '\n';
+    SDL_Window* window = SDL_CreateWindow(
+        "SDL3 Experiment Window",
+        WINDOW_WIDTH,
+        WINDOW_HEIGHT,
+        SDL_WINDOW_RESIZABLE | SDL_WINDOW_MAXIMIZED
+    );
+
+    if (window == nullptr)
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Window could not be created! SDL_Error: %s\n", SDL_GetError());
         SDL_Quit();
         return 1;
     }
 
-    SDL_Renderer* renderer = SDL_CreateRenderer(window, nullptr);
-    if (!renderer) {
-        std::cerr << "SDL_CreateRenderer failed: " << SDL_GetError() << '\n';
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return 1;
-    }
+    SDL_Log("SDL3 Window created successfully!");
 
-    SDL_SetRenderVSync(renderer, 1);
-
+    // physics world
     b2WorldDef worldDef = b2DefaultWorldDef();
-    worldDef.gravity = {0.0f, -9.81f};
+    worldDef.gravity = b2Vec2(0.0, 0.98f);
     b2WorldId worldId = b2CreateWorld(&worldDef);
 
-    constexpr float platformWidth = 6.0f;
-    constexpr float platformHeight = 0.5f;
+    // renderer
+    SDL_Renderer* renderer = SDL_CreateRenderer(window, nullptr);
 
-    b2BodyDef groundDef = b2DefaultBodyDef();
-    groundDef.position = {4.0f, 1.0f};
-    b2BodyId groundId = b2CreateBody(worldId, &groundDef);
-
-    b2ShapeDef groundShapeDef = b2DefaultShapeDef();
-    groundShapeDef.density = 0.0f;
-    groundShapeDef.material.friction = 0.8f;
-    groundShapeDef.material.restitution = 0.1f;
-    groundShapeDef.updateBodyMass = false;
-    const b2Polygon groundPolygon = b2MakeBox(platformWidth * 0.5f, platformHeight * 0.5f);
-    b2CreatePolygonShape(groundId, &groundShapeDef, &groundPolygon);
-
-    std::vector<SimBox> boxes;
-    boxes.reserve(5);
-
-    for (int i = 0; i < 5; ++i) {
-        const float width = 0.5f;
-        const float height = 0.5f + 0.1f * (i % 2);
-
-        b2BodyDef bodyDef = b2DefaultBodyDef();
-        bodyDef.type = b2_dynamicBody;
-        bodyDef.position = {2.5f + 0.6f * i, 4.0f + 0.3f * i};
-        bodyDef.angularDamping = 0.15f;
-
-        b2BodyId bodyId = b2CreateBody(worldId, &bodyDef);
-
-        b2ShapeDef shapeDef = b2DefaultShapeDef();
-        shapeDef.density = 1.0f;
-        shapeDef.material.friction = 0.4f;
-        shapeDef.material.restitution = 0.3f;
-        const b2Polygon boxPolygon = b2MakeBox(width * 0.5f, height * 0.5f);
-        b2CreatePolygonShape(bodyId, &shapeDef, &boxPolygon);
-
-        const float red = std::clamp((160.0f + i * 15.0f) / 255.0f, 0.0f, 1.0f);
-        const float green = std::clamp((80.0f + i * 20.0f) / 255.0f, 0.0f, 1.0f);
-        const float blue = std::clamp((200.0f - i * 20.0f) / 255.0f, 0.0f, 1.0f);
-        const SDL_FColor color{red, green, blue, 1.0f};
-        boxes.push_back(SimBox{bodyId, width, height, color});
+    // blocks
+    constexpr int NUM_RECTS = 5;
+    std::vector<std::unique_ptr<MyBlocks>> myBlocks;
+    for (int i = 0; i < NUM_RECTS; ++i) {
+        myBlocks.push_back(std::make_unique<MyBlocks>(100 + i * (100 + 10), 100, worldId));
     }
 
-    bool running = true;
-    Uint64 previousTicks = SDL_GetTicks();
-    float accumulator = 0.0f;
-    const float timeStep = 1.0f / 60.0f;
-    int windowWidth = 800;
-    int windowHeight = 600;
+    // solid platform
+    const auto platform = std::make_unique<MyPlatform>(10, 500, worldId);
 
-    while (running) {
-        SDL_Event event;
-        while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_EVENT_QUIT) {
+    SDL_Event event;
+    bool running = true;
+
+    while (running)
+    {
+        // update physics world
+        b2World_Step(worldId, 1.0f/60.0f, 4);
+
+        // process events
+        while (SDL_PollEvent(&event))
+        {
+            if (event.type == SDL_EVENT_QUIT)
+            {
                 running = false;
-            } else if (event.type == SDL_EVENT_WINDOW_RESIZED) {
-                windowWidth = event.window.data1;
-                windowHeight = event.window.data2;
+            }
+
+            if (event.type == SDL_EVENT_KEY_DOWN)
+            {
+                if (event.key.key == SDLK_ESCAPE)
+                {
+                    running = false;
+                }
             }
         }
 
-        SDL_GetWindowSizeInPixels(window, &windowWidth, &windowHeight);
-
-        const Uint64 currentTicks = SDL_GetTicks();
-        float frameTime = static_cast<float>(currentTicks - previousTicks) / 1000.0f;
-        if (frameTime > 0.25f) {
-            frameTime = 0.25f;
-        }
-        previousTicks = currentTicks;
-        accumulator += frameTime;
-
-        while (accumulator >= timeStep) {
-            b2World_Step(worldId, timeStep, 4);
-            accumulator -= timeStep;
-        }
-
-        SDL_SetRenderDrawColor(renderer, 20, 24, 35, 255);
+        // clear before rendering
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE); // black
         SDL_RenderClear(renderer);
 
-        drawBody(renderer, groundId, platformWidth, platformHeight,
-                 SDL_FColor{90.0f / 255.0f, 90.0f / 255.0f, 120.0f / 255.0f, 1.0f}, windowHeight);
-
-        for (const auto& box : boxes) {
-            drawBody(renderer, box.bodyId, box.width, box.height, box.color, windowHeight);
+        // display blocks
+        SDL_SetRenderDrawColor(renderer, 53, 20, 135, SDL_ALPHA_OPAQUE); // purple
+        for (const std::unique_ptr<MyBlocks>& block : myBlocks) {
+            block->UpdatePosition(worldId);
+            SDL_RenderRect(renderer, &block->getRect());
         }
 
+        // display platform
+        SDL_SetRenderDrawColor(renderer, 164, 96, 8, SDL_ALPHA_OPAQUE); // purple
+        SDL_RenderRect(renderer, &platform->getRect());
+
         SDL_RenderPresent(renderer);
+
+        SDL_Delay(16); // A small delay (approx. 60 FPS)
     }
 
     b2DestroyWorld(worldId);
-
-    SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
 
