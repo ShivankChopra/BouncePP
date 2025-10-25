@@ -1,15 +1,20 @@
 #include <cmath>
+#include <filesystem>
 #include <iostream>
+#include <string>
 #include <vector>
 #include <box2d/box2d.h>
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "vendor/stb/stb_image.h"
+
 constexpr int WINDOW_WIDTH = 800;
 constexpr int WINDOW_HEIGHT = 600;
 
-constexpr int BLOCK_WIDTH = 50;
-constexpr int BLOCK_HEIGHT = 50;
+constexpr int BLOCK_WIDTH = 25;
+constexpr int BLOCK_HEIGHT = 25;
 
 constexpr int PLATFORM_WIDTH = 200;
 constexpr int PLATFORM_HEIGHT = 10;
@@ -23,7 +28,7 @@ inline float px_to_m(const float px) { return px / PPM; }
 inline float m_to_px(const float m) { return m * PPM; }
 
 // rectangular movable boxes
-class MyBlocks {
+class Ball {
 
     SDL_FRect _rect{};
     b2BodyDef _bodyDef;
@@ -34,7 +39,7 @@ class MyBlocks {
     double _rotDeg;
 
 public:
-    MyBlocks(const float x, const float y, const b2WorldId worldId) {
+    Ball(const float x, const float y, const b2WorldId worldId) {
         const float center_x_m = px_to_m(x + BLOCK_WIDTH / 2.0f);
         const float center_y_m = px_to_m(y + BLOCK_HEIGHT / 2.0f);
 
@@ -45,9 +50,9 @@ public:
         _physicsBodyId = b2CreateBody(worldId, &_bodyDef);
 
         _shapeDef = b2DefaultShapeDef();
-        _shapeDef.density = 20.0f;
+        _shapeDef.density = 40.0f;
         _shapeDef.material.friction = 0.4f;
-        _shapeDef.material.restitution = 0.7f;
+        _shapeDef.material.restitution = 0.8f;
 
         _polygon = b2MakeBox(px_to_m(BLOCK_WIDTH / 2.0f), px_to_m(BLOCK_HEIGHT / 2.0f));
 
@@ -62,10 +67,6 @@ public:
         _rotDeg = atan2(rot_y, rot_x) * 180.0 / M_PI;
         _rect.x = m_to_px(x) - BLOCK_WIDTH / 2.0f;
         _rect.y = m_to_px(y) - BLOCK_HEIGHT / 2.0f;
-    }
-
-    [[nodiscard]] const SDL_FRect& getRect() const {
-        return _rect;
     }
 
     void render(SDL_Renderer* renderer, SDL_Texture* texture) {
@@ -102,14 +103,57 @@ public:
         _rect = {x, y, PLATFORM_WIDTH, PLATFORM_HEIGHT};
     }
 
-    [[nodiscard]] const SDL_FRect& getRect() const {
-        return _rect;
-    }
-
     void render(SDL_Renderer* renderer, SDL_Texture* texture) {
         SDL_RenderTexture(renderer, texture, nullptr, &_rect);
     }
 };
+
+// load texture from file
+SDL_Texture* LoadTextureFromFile(SDL_Renderer *renderer, const char *filename)
+{
+    int w, h, channels;
+
+    // Force 4 channels (RGBA8). This is simplest and well-supported.
+    unsigned char *pixels = stbi_load(filename, &w, &h, &channels, STBI_rgb_alpha);
+    if (!pixels) {
+        SDL_Log("stb_image failed to load %s: %s", filename, stbi_failure_reason());
+        return NULL;
+    }
+
+    // Describe the pixel format to SDL.
+    // STBI_rgb_alpha gives us 4 bytes per pixel: R,G,B,A in 8 bits each.
+    const Uint32 pitch = (Uint32)(w * 4);  // bytes per row
+
+    SDL_Surface *surface = SDL_CreateSurfaceFrom(
+        w,
+        h,
+        SDL_PIXELFORMAT_RGBA32, // a.k.a. 32-bit RGBA8
+        pixels,
+        pitch
+    );
+
+    if (!surface) {
+        SDL_Log("SDL_CreateSurfaceFrom failed: %s", SDL_GetError());
+        stbi_image_free(pixels);
+        return NULL;
+    }
+
+    // Upload to GPU as texture
+    SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, surface);
+    if (!texture) {
+        SDL_Log("SDL_CreateTextureFromSurface failed: %s", SDL_GetError());
+        SDL_DestroySurface(surface);
+        stbi_image_free(pixels);
+        return NULL;
+    }
+
+    // Cleanup CPU-side stuff:
+    SDL_DestroySurface(surface); // this does NOT free 'pixels' because we created the surface *from* external memory
+    stbi_image_free(pixels);     // so we still free it manually
+
+    return texture;
+}
+
 
 int main(int argc, char* argv[])
 {
@@ -137,34 +181,29 @@ int main(int argc, char* argv[])
 
     // physics world
     b2WorldDef worldDef = b2DefaultWorldDef();
-    worldDef.gravity = b2Vec2(0.0, 0.98f);
+    worldDef.gravity = b2Vec2(0.0, 10.98f);
     b2WorldId worldId = b2CreateWorld(&worldDef);
 
     // renderer
     SDL_Renderer* renderer = SDL_CreateRenderer(window, nullptr);
 
     // prepare block texture
-    SDL_Texture* boxTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_UNKNOWN, SDL_TEXTUREACCESS_TARGET, BLOCK_WIDTH, BLOCK_HEIGHT);
-
-    SDL_Texture* prev = SDL_GetRenderTarget(renderer);
-    SDL_SetRenderTarget(renderer, boxTexture);
-    SDL_SetRenderDrawColor(renderer, 53, 20, 135, SDL_ALPHA_OPAQUE); // purple
-    SDL_RenderClear(renderer);
-    SDL_SetRenderTarget(renderer, prev);
+    std::string ballImgPath = "/Users/shivankchopra/CLionProjects/Bounce++/resources/ball_image.png"; // todo Fixed relative paths
+    SDL_Texture* boxTexture = LoadTextureFromFile(renderer, ballImgPath.c_str());
 
     // prepare platform texture
     SDL_Texture* platformTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_UNKNOWN, SDL_TEXTUREACCESS_TARGET, PLATFORM_WIDTH, PLATFORM_HEIGHT);
-    prev = SDL_GetRenderTarget(renderer);
+    SDL_Texture* prev = SDL_GetRenderTarget(renderer);
     SDL_SetRenderTarget(renderer, platformTexture);
-    SDL_SetRenderDrawColor(renderer, 164, 96, 8, SDL_ALPHA_OPAQUE); // brown
+    SDL_SetRenderDrawColor(renderer, 166, 44, 8, SDL_ALPHA_OPAQUE); // dark brown
     SDL_RenderClear(renderer);
     SDL_SetRenderTarget(renderer, prev);
 
     // blocks
-    constexpr int NUM_RECTS = 10;
-    std::vector<std::unique_ptr<MyBlocks>> myBlocks;
-    for (int i = 0; i < NUM_RECTS; ++i) {
-        myBlocks.push_back(std::make_unique<MyBlocks>(100 + i * (50 + 10), 100, worldId));
+    constexpr int NUM_BALLS = 10;
+    std::vector<std::unique_ptr<Ball>> balls;
+    for (int i = 0; i < NUM_BALLS; ++i) {
+        balls.push_back(std::make_unique<Ball>(100 + i * (50 + 10), 100, worldId));
     }
 
     // solid platform
@@ -200,11 +239,11 @@ int main(int argc, char* argv[])
         }
 
         // clear before rendering
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, SDL_ALPHA_OPAQUE); // black
+        SDL_SetRenderDrawColor(renderer, 119, 182, 246, SDL_ALPHA_OPAQUE); // powder blue (light blue)
         SDL_RenderClear(renderer);
 
         // display blocks
-        for (const std::unique_ptr<MyBlocks>& block : myBlocks) {
+        for (const std::unique_ptr<Ball>& block : balls) {
             block->UpdatePosition(worldId);
             block->render(renderer, boxTexture);
         }
