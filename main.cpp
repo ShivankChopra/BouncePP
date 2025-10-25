@@ -1,3 +1,4 @@
+#include <cmath>
 #include <iostream>
 #include <vector>
 #include <box2d/box2d.h>
@@ -7,11 +8,15 @@
 constexpr int WINDOW_WIDTH = 800;
 constexpr int WINDOW_HEIGHT = 600;
 
-constexpr int BLOCK_WIDTH = 100;
-constexpr int BLOCK_HEIGHT = 100;
+constexpr int BLOCK_WIDTH = 50;
+constexpr int BLOCK_HEIGHT = 50;
 
-constexpr int PLATFORM_WIDTH = 1000;
+constexpr int PLATFORM_WIDTH = 200;
 constexpr int PLATFORM_HEIGHT = 10;
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 static constexpr float PPM = 50.0f; // 50 pixels = 1 meter
 inline float px_to_m(const float px) { return px / PPM; }
@@ -25,6 +30,8 @@ class MyBlocks {
     b2ShapeDef _shapeDef;
     b2Polygon _polygon;
     b2BodyId _physicsBodyId;
+
+    double _rotDeg;
 
 public:
     MyBlocks(const float x, const float y, const b2WorldId worldId) {
@@ -51,12 +58,18 @@ public:
 
     void UpdatePosition(const b2WorldId worldId) {
         auto [x, y] = b2Body_GetPosition(_physicsBodyId);
+        auto [rot_x, rot_y] =  b2Body_GetRotation(_physicsBodyId);
+        _rotDeg = atan2(rot_y, rot_x) * 180.0 / M_PI;
         _rect.x = m_to_px(x) - BLOCK_WIDTH / 2.0f;
         _rect.y = m_to_px(y) - BLOCK_HEIGHT / 2.0f;
     }
 
     [[nodiscard]] const SDL_FRect& getRect() const {
         return _rect;
+    }
+
+    void render(SDL_Renderer* renderer, SDL_Texture* texture) {
+        SDL_RenderTextureRotated(renderer, texture, nullptr, &_rect, _rotDeg, nullptr, SDL_FLIP_NONE);
     }
 };
 
@@ -92,6 +105,10 @@ public:
     [[nodiscard]] const SDL_FRect& getRect() const {
         return _rect;
     }
+
+    void render(SDL_Renderer* renderer, SDL_Texture* texture) {
+        SDL_RenderTexture(renderer, texture, nullptr, &_rect);
+    }
 };
 
 int main(int argc, char* argv[])
@@ -103,7 +120,7 @@ int main(int argc, char* argv[])
     }
 
     SDL_Window* window = SDL_CreateWindow(
-        "SDL3 Experiment Window",
+        "Physics + rendering demo!",
         WINDOW_WIDTH,
         WINDOW_HEIGHT,
         SDL_WINDOW_RESIZABLE | SDL_WINDOW_MAXIMIZED
@@ -116,7 +133,7 @@ int main(int argc, char* argv[])
         return 1;
     }
 
-    SDL_Log("SDL3 Window created successfully!");
+    SDL_Log("SDL3 Window created successfully yayyy!");
 
     // physics world
     b2WorldDef worldDef = b2DefaultWorldDef();
@@ -126,15 +143,36 @@ int main(int argc, char* argv[])
     // renderer
     SDL_Renderer* renderer = SDL_CreateRenderer(window, nullptr);
 
+    // prepare block texture
+    SDL_Texture* boxTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_UNKNOWN, SDL_TEXTUREACCESS_TARGET, BLOCK_WIDTH, BLOCK_HEIGHT);
+
+    SDL_Texture* prev = SDL_GetRenderTarget(renderer);
+    SDL_SetRenderTarget(renderer, boxTexture);
+    SDL_SetRenderDrawColor(renderer, 53, 20, 135, SDL_ALPHA_OPAQUE); // purple
+    SDL_RenderClear(renderer);
+    SDL_SetRenderTarget(renderer, prev);
+
+    // prepare platform texture
+    SDL_Texture* platformTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_UNKNOWN, SDL_TEXTUREACCESS_TARGET, PLATFORM_WIDTH, PLATFORM_HEIGHT);
+    prev = SDL_GetRenderTarget(renderer);
+    SDL_SetRenderTarget(renderer, platformTexture);
+    SDL_SetRenderDrawColor(renderer, 164, 96, 8, SDL_ALPHA_OPAQUE); // brown
+    SDL_RenderClear(renderer);
+    SDL_SetRenderTarget(renderer, prev);
+
     // blocks
-    constexpr int NUM_RECTS = 5;
+    constexpr int NUM_RECTS = 10;
     std::vector<std::unique_ptr<MyBlocks>> myBlocks;
     for (int i = 0; i < NUM_RECTS; ++i) {
-        myBlocks.push_back(std::make_unique<MyBlocks>(100 + i * (100 + 10), 100, worldId));
+        myBlocks.push_back(std::make_unique<MyBlocks>(100 + i * (50 + 10), 100, worldId));
     }
 
     // solid platform
-    const auto platform = std::make_unique<MyPlatform>(10, 500, worldId);
+    constexpr int NUM_STEPS = 12;
+    std::vector<std::unique_ptr<MyPlatform>> steps;
+    for (int i = 0; i < NUM_STEPS; ++i) {
+        steps.push_back(std::make_unique<MyPlatform>(10 + i * (100 + 10), 300 + i * (30 + 10), worldId));
+    }
 
     SDL_Event event;
     bool running = true;
@@ -166,15 +204,15 @@ int main(int argc, char* argv[])
         SDL_RenderClear(renderer);
 
         // display blocks
-        SDL_SetRenderDrawColor(renderer, 53, 20, 135, SDL_ALPHA_OPAQUE); // purple
         for (const std::unique_ptr<MyBlocks>& block : myBlocks) {
             block->UpdatePosition(worldId);
-            SDL_RenderRect(renderer, &block->getRect());
+            block->render(renderer, boxTexture);
         }
 
-        // display platform
-        SDL_SetRenderDrawColor(renderer, 164, 96, 8, SDL_ALPHA_OPAQUE); // purple
-        SDL_RenderRect(renderer, &platform->getRect());
+        // display platform steps
+        for (const std::unique_ptr<MyPlatform>& step : steps) {
+            step->render(renderer, platformTexture);
+        }
 
         SDL_RenderPresent(renderer);
 
