@@ -7,7 +7,14 @@ find_package(EnTT CONFIG REQUIRED)
 find_package(SDL3 CONFIG REQUIRED)
 find_package(box2d CONFIG REQUIRED)
 
-add_executable(BouncePP main.cpp
-        vendor/stb/stb_image.h)
+add_executable(
+        BouncePP src/main.cpp
+        src/vendor/stb/stb_image.h
+        src/ecs/components/components.hpp
+        src/ecs/factories/factory.h
+        src/ecs/factories/factory.cpp
+        src/ecs/systems/physicsSystem.h
+        src/ecs/systems/physicsSystem.cpp
+)
 
 target_link_libraries(BouncePP PRIVATE EnTT::EnTT SDL3::SDL3 box2d::box2d)
