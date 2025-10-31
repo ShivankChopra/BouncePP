@@ -2,5 +2,6 @@
 # To keep your changes, remove these comment lines, but the plugin won't be able to modify your requirements
 
 requirements:
+  - "entt/3.15.0"
   - "box2d/3.1.0"
   - "sdl/3.2.20"

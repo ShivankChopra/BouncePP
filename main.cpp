@@ -1,8 +1,7 @@
-#include <cmath>
 #include <filesystem>
 #include <iostream>
 #include <string>
-#include <vector>
+#include <entt/entt.hpp>
 #include <box2d/box2d.h>
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
@@ -26,87 +25,6 @@ constexpr int PLATFORM_HEIGHT = 10;
 static constexpr float PPM = 50.0f; // 50 pixels = 1 meter
 inline float px_to_m(const float px) { return px / PPM; }
 inline float m_to_px(const float m) { return m * PPM; }
-
-// rectangular movable boxes
-class Ball {
-
-    SDL_FRect _rect{};
-    b2BodyDef _bodyDef;
-    b2ShapeDef _shapeDef;
-    b2Polygon _polygon;
-    b2BodyId _physicsBodyId;
-
-    double _rotDeg;
-
-public:
-    Ball(const float x, const float y, const b2WorldId worldId) {
-        const float center_x_m = px_to_m(x + BLOCK_WIDTH / 2.0f);
-        const float center_y_m = px_to_m(y + BLOCK_HEIGHT / 2.0f);
-
-        _bodyDef = b2DefaultBodyDef();
-        _bodyDef.type = b2_dynamicBody;
-        _bodyDef.position = {center_x_m, center_y_m};
-
-        _physicsBodyId = b2CreateBody(worldId, &_bodyDef);
-
-        _shapeDef = b2DefaultShapeDef();
-        _shapeDef.density = 40.0f;
-        _shapeDef.material.friction = 0.4f;
-        _shapeDef.material.restitution = 0.8f;
-
-        _polygon = b2MakeBox(px_to_m(BLOCK_WIDTH / 2.0f), px_to_m(BLOCK_HEIGHT / 2.0f));
-
-        b2CreatePolygonShape(_physicsBodyId, &_shapeDef, &_polygon);
-
-        _rect = {x, y, BLOCK_WIDTH, BLOCK_HEIGHT};
-    }
-
-    void UpdatePosition(const b2WorldId worldId) {
-        auto [x, y] = b2Body_GetPosition(_physicsBodyId);
-        auto [rot_x, rot_y] =  b2Body_GetRotation(_physicsBodyId);
-        _rotDeg = atan2(rot_y, rot_x) * 180.0 / M_PI;
-        _rect.x = m_to_px(x) - BLOCK_WIDTH / 2.0f;
-        _rect.y = m_to_px(y) - BLOCK_HEIGHT / 2.0f;
-    }
-
-    void render(SDL_Renderer* renderer, SDL_Texture* texture) {
-        SDL_RenderTextureRotated(renderer, texture, nullptr, &_rect, _rotDeg, nullptr, SDL_FLIP_NONE);
-    }
-};
-
-// solid static platform
-class MyPlatform {
-
-    SDL_FRect _rect{};
-    b2BodyDef _bodyDef;
-    b2ShapeDef _shapeDef;
-    b2Polygon _polygon;
-    b2BodyId _physicsBodyId;
-
-public:
-    MyPlatform(const float x, const float y, const b2WorldId worldId) {
-        const float center_x_m = px_to_m(x + PLATFORM_WIDTH / 2.0f);
-        const float center_y_m = px_to_m(y + PLATFORM_HEIGHT / 2.0f);
-
-        _bodyDef = b2DefaultBodyDef();
-        _bodyDef.position = {center_x_m, center_y_m};
-
-        _physicsBodyId = b2CreateBody(worldId, &_bodyDef);
-
-        _shapeDef = b2DefaultShapeDef();
-        _shapeDef.density = 0.0f;
-
-        _polygon = b2MakeBox(px_to_m(PLATFORM_WIDTH / 2.0f), px_to_m(PLATFORM_HEIGHT / 2.0f));
-
-        b2CreatePolygonShape(_physicsBodyId, &_shapeDef, &_polygon);
-
-        _rect = {x, y, PLATFORM_WIDTH, PLATFORM_HEIGHT};
-    }
-
-    void render(SDL_Renderer* renderer, SDL_Texture* texture) {
-        SDL_RenderTexture(renderer, texture, nullptr, &_rect);
-    }
-};
 
 // load texture from file
 SDL_Texture* LoadTextureFromFile(SDL_Renderer *renderer, const char *filename)
@@ -154,6 +72,61 @@ SDL_Texture* LoadTextureFromFile(SDL_Renderer *renderer, const char *filename)
     return texture;
 }
 
+struct PhysicsData {
+    b2BodyDef _bodyDef;
+    b2ShapeDef _shapeDef;
+    b2Polygon _polygon;
+    b2BodyId _physicsBodyId;
+};
+
+enum TextureId {
+    BALL_TEXTURE = 0,
+    PLATFORM_TEXTURE = 1
+};
+
+struct RenderingData {
+    SDL_FRect _rect{};
+    TextureId _textureId;
+    double _rotDeg = 0;
+};
+
+PhysicsData createPhysicsData(const float x, const float y, const float w, const float h, const b2WorldId worldId, const bool isDynamic = false) {
+    auto data = PhysicsData();
+
+    const float center_x_m = px_to_m(x + w / 2.0f);
+    const float center_y_m = px_to_m(y + h / 2.0f);
+
+    data._bodyDef = b2DefaultBodyDef();
+
+    if (isDynamic) {
+        data._bodyDef.type = b2_dynamicBody;
+    }
+
+    data._bodyDef.position = { center_x_m, center_y_m };
+    data._physicsBodyId = b2CreateBody(worldId, &data._bodyDef);
+    data._shapeDef = b2DefaultShapeDef();
+
+    if (isDynamic) {
+        data._shapeDef.density = 40.0f;
+        data._shapeDef.material.friction = 0.4f;
+        data._shapeDef.material.restitution = 0.8f;
+    } else {
+        data._shapeDef.density = 0.0f;
+    }
+
+    data._polygon = b2MakeBox(px_to_m(w / 2.0f), px_to_m(h / 2.0f));
+
+    b2CreatePolygonShape(data._physicsBodyId, &data._shapeDef, &data._polygon);
+
+    return data;
+}
+
+RenderingData createRenderingData(const float x, const float y, const float w, const float h, const TextureId tid) {
+    auto data = RenderingData();
+    data._rect = { x, y, w, h };
+    data._textureId = tid;
+    return data;
+}
 
 int main(int argc, char* argv[])
 {
@@ -179,6 +152,9 @@ int main(int argc, char* argv[])
 
     SDL_Log("SDL3 Window created successfully yayyy!");
 
+    // ECS registery
+    entt::registry registry;
+
     // physics world
     b2WorldDef worldDef = b2DefaultWorldDef();
     worldDef.gravity = b2Vec2(0.0, 10.98f);
@@ -189,7 +165,7 @@ int main(int argc, char* argv[])
 
     // prepare block texture
     std::string ballImgPath = "/Users/shivankchopra/CLionProjects/Bounce++/resources/ball_image.png"; // todo Fixed relative paths
-    SDL_Texture* boxTexture = LoadTextureFromFile(renderer, ballImgPath.c_str());
+    SDL_Texture* ballTexture = LoadTextureFromFile(renderer, ballImgPath.c_str());
 
     // prepare platform texture
     SDL_Texture* platformTexture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_UNKNOWN, SDL_TEXTUREACCESS_TARGET, PLATFORM_WIDTH, PLATFORM_HEIGHT);
@@ -199,20 +175,30 @@ int main(int argc, char* argv[])
     SDL_RenderClear(renderer);
     SDL_SetRenderTarget(renderer, prev);
 
-    // blocks
+    // track textures
+    SDL_Texture* textures[2] = { ballTexture, platformTexture };
+
+    // create balls
     constexpr int NUM_BALLS = 10;
-    std::vector<std::unique_ptr<Ball>> balls;
-    for (int i = 0; i < NUM_BALLS; ++i) {
-        balls.push_back(std::make_unique<Ball>(100 + i * (50 + 10), 100, worldId));
+    for (int i = 0; i < NUM_BALLS; i++) {
+        int x = 100 + i * (50 + 10);
+        int y = 100;
+        const auto ball = registry.create();
+        registry.emplace<PhysicsData>(ball, createPhysicsData(x, y, BLOCK_WIDTH, BLOCK_HEIGHT, worldId, true));
+        registry.emplace<RenderingData>(ball, createRenderingData(x, y, BLOCK_WIDTH, BLOCK_HEIGHT, TextureId::BALL_TEXTURE));
     }
 
-    // solid platform
+    // create platforms
     constexpr int NUM_STEPS = 12;
-    std::vector<std::unique_ptr<MyPlatform>> steps;
-    for (int i = 0; i < NUM_STEPS; ++i) {
-        steps.push_back(std::make_unique<MyPlatform>(10 + i * (100 + 10), 300 + i * (30 + 10), worldId));
+    for (int i = 0; i < NUM_STEPS; i++) {
+        int x = 10 + i * (100 + 10);
+        int y = 300 + i * (30 + 10);
+        const auto step = registry.create();
+        registry.emplace<PhysicsData>(step, createPhysicsData(x, y, PLATFORM_WIDTH, PLATFORM_HEIGHT, worldId));
+        registry.emplace<RenderingData>(step, createRenderingData(x, y, PLATFORM_WIDTH, PLATFORM_HEIGHT, PLATFORM_TEXTURE));
     }
 
+    // Game loop
     SDL_Event event;
     bool running = true;
 
@@ -242,15 +228,28 @@ int main(int argc, char* argv[])
         SDL_SetRenderDrawColor(renderer, 119, 182, 246, SDL_ALPHA_OPAQUE); // powder blue (light blue)
         SDL_RenderClear(renderer);
 
-        // display blocks
-        for (const std::unique_ptr<Ball>& block : balls) {
-            block->UpdatePosition(worldId);
-            block->render(renderer, boxTexture);
+        // apply physics updates
+        auto physicsRenderingView = registry.view<PhysicsData, RenderingData>();
+        for (auto [entity, physicsData, renderingData] : physicsRenderingView.each()) {
+            if (renderingData._textureId == TextureId::PLATFORM_TEXTURE)
+                continue;
+
+            // only update for balls
+            auto [x, y] = b2Body_GetPosition(physicsData._physicsBodyId);
+            auto [rot_x, rot_y] =  b2Body_GetRotation(physicsData._physicsBodyId);
+            renderingData._rotDeg = atan2(rot_y, rot_x) * 180.0 / M_PI;
+            renderingData._rect.x = m_to_px(x) - renderingData._rect.w / 2.0f;
+            renderingData._rect.y = m_to_px(y) - renderingData._rect.h / 2.0f;
         }
 
-        // display platform steps
-        for (const std::unique_ptr<MyPlatform>& step : steps) {
-            step->render(renderer, platformTexture);
+        // render components
+        auto renderView = registry.view<RenderingData>();
+        for (auto [entity, renderData] : renderView.each()) {
+            if (renderData._textureId == TextureId::BALL_TEXTURE) {
+                SDL_RenderTextureRotated(renderer, textures[TextureId::BALL_TEXTURE], nullptr, &renderData._rect, renderData._rotDeg, nullptr, SDL_FLIP_NONE);
+            } else {
+                SDL_RenderTexture(renderer, textures[renderData._textureId], nullptr, &renderData._rect);
+            }
         }
 
         SDL_RenderPresent(renderer);
