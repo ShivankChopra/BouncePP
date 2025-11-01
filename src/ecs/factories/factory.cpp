@@ -25,7 +25,7 @@ PhysicsData Factory::createPhysicsData(const float x, const float y, const float
     if (isDynamic) {
         data._shapeDef.density = 40.0f;
         data._shapeDef.material.friction = 0.4f;
-        data._shapeDef.material.restitution = 0.8f;
+        data._shapeDef.material.restitution = 1.1f;
     } else {
         data._shapeDef.density = 0.0f;
     }
@@ -48,8 +48,8 @@ RenderingData Factory::createRenderingData(const float x, const float y, const f
 
 const entt::entity& Factory::createBall(entt::registry &registry, const int &x, const int &y) {
     const auto ball = registry.create();
-    registry.emplace<PhysicsData>(ball, createPhysicsData(x, y, BLOCK_WIDTH, BLOCK_HEIGHT, _worldId, true));
-    registry.emplace<RenderingData>(ball, createRenderingData(x, y, BLOCK_WIDTH, BLOCK_HEIGHT, TextureId::BALL_TEXTURE));
+    registry.emplace<PhysicsData>(ball, createPhysicsData(x, y, BALL_WIDTH, BALL_HEIGHT, _worldId, true));
+    registry.emplace<RenderingData>(ball, createRenderingData(x, y, BALL_WIDTH, BALL_HEIGHT, TextureId::BALL_TEXTURE));
     return ball;
 }
 

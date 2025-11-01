@@ -10,8 +10,8 @@
 
 using namespace components;
 
-constexpr int BLOCK_WIDTH = 25;
-constexpr int BLOCK_HEIGHT = 25;
+constexpr int BALL_WIDTH = 25;
+constexpr int BALL_HEIGHT = 25;
 
 constexpr int PLATFORM_WIDTH = 200;
 constexpr int PLATFORM_HEIGHT = 10;

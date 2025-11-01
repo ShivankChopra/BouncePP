@@ -112,18 +112,39 @@ int main(int argc, char* argv[])
     auto factory = new Factory(textures, ps->getWorldId());
 
     // create balls
-    constexpr int NUM_BALLS = 10;
+    constexpr int NUM_BALLS = 5;
     for (int i = 0; i < NUM_BALLS; i++) {
-        int x = 100 + i * (50 + 10);
-        int y = 100;
+        int x = 500 + i * (BALL_WIDTH + 10);
+        int y = 400;
         factory->createBall(registry, x, y);
     }
 
     // create platforms
-    constexpr int NUM_STEPS = 12;
+    constexpr int NUM_STEPS = 15;
+
+    // upper steps
     for (int i = 0; i < NUM_STEPS; i++) {
+        int y_offset = i * (30 + 10);
+
+        if (i > floor(NUM_STEPS/2)) {
+            y_offset = (NUM_STEPS - i) * (30 + 10);
+        }
+
         int x = 10 + i * (100 + 10);
-        int y = 300 + i * (30 + 10);
+        int y = 500 - y_offset;
+        factory->createStep(registry, x, y);
+    }
+
+    // lower steps
+    for (int i = 0; i < NUM_STEPS; i++) {
+        int y_offset = i * (30 + 10);
+
+        if (i > floor(NUM_STEPS/2)) {
+            y_offset = (NUM_STEPS - i) * (30 + 10);
+        }
+
+        int x = 10 + i * (100 + 10);
+        int y = 500 + y_offset;
         factory->createStep(registry, x, y);
     }
 
@@ -153,12 +174,12 @@ int main(int argc, char* argv[])
             }
         }
 
+        // apply physics updates
+        ps->syncPhysicsWithRendering(registry);
+
         // clear before rendering
         SDL_SetRenderDrawColor(renderer, 56, 180, 248, SDL_ALPHA_OPAQUE); // light blue
         SDL_RenderClear(renderer);
-
-        // apply physics updates
-        ps->syncPhysicsWithRendering(registry);
 
         // render components
         auto renderView = registry.view<RenderingData>();
