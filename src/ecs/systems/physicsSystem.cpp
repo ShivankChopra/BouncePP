@@ -15,9 +15,9 @@ void PhysicsSystem::updatePhysics() {
 }
 
 void PhysicsSystem::syncPhysicsWithRendering(const entt::registry &registry) {
-    auto physicsRenderingView = registry.view<PhysicsData, RenderingData>();
-    for (auto [entity, physicsData, renderingData] : physicsRenderingView.each()) {
-        if (renderingData._textureId == TextureId::PLATFORM_TEXTURE)
+    auto physicsRenderingView = registry.view<PhysicsData, RenderingData, MetaData>();
+    for (auto [entity, physicsData, renderingData, metaData] : physicsRenderingView.each()) {
+        if (metaData._entityType == EntityType::PLATFORM)
             continue;
 
         // only update for balls

@@ -8,6 +8,8 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "ecs/factories/factory.h"
+#include "ecs/systems/GameLogic.h"
+#include "ecs/systems/InputSystem.h"
 #include "ecs/systems/physicsSystem.h"
 #include "vendor/stb/stb_image.h"
 
@@ -84,17 +86,19 @@ int main(int argc, char* argv[])
 
     SDL_Log("SDL3 Window created successfully yayyy!");
 
-    // ECS registery
+    // ECS registry
     entt::registry registry;
 
-    // physics
-    auto ps = new PhysicsSystem(10.98f);
+    // systems
+    auto physicsSystem = new PhysicsSystem(10.98f);
+    auto inputSystem = new InputSystem();
+    auto gameLogicSystem = new GameLogic();
 
     // renderer
     SDL_Renderer* renderer = SDL_CreateRenderer(window, nullptr);
 
     // prepare block texture
-    std::string ballImgPath = "/Users/shivankchopra/CLionProjects/Bounce++/resources/ball_image.png"; // todo Fixed relative paths
+    const std::string ballImgPath = "/Users/shivankchopra/CLionProjects/Bounce++/resources/ball_image.png"; // todo Fixed relative paths
     SDL_Texture* ballTexture = LoadTextureFromFile(renderer, ballImgPath.c_str());
 
     // prepare platform texture
@@ -109,18 +113,20 @@ int main(int argc, char* argv[])
     const std::vector<SDL_Texture*> textures = { ballTexture, platformTexture };
 
     // factory
-    auto factory = new Factory(textures, ps->getWorldId());
+    auto factory = new Factory(textures, physicsSystem->getWorldId());
 
     // create balls
-    constexpr int NUM_BALLS = 5;
+    bool isPlayer = true;
+    constexpr int NUM_BALLS = 10;
     for (int i = 0; i < NUM_BALLS; i++) {
         int x = 500 + i * (BALL_WIDTH + 10);
         int y = 400;
-        factory->createBall(registry, x, y);
+        factory->createBall(registry, x, y, isPlayer);
+        isPlayer = false;
     }
 
     // create platforms
-    constexpr int NUM_STEPS = 15;
+    constexpr int NUM_STEPS = 16;
 
     // upper steps
     for (int i = 0; i < NUM_STEPS; i++) {
@@ -155,11 +161,13 @@ int main(int argc, char* argv[])
     while (running)
     {
         // update physics world
-        ps->updatePhysics();
+        physicsSystem->updatePhysics();
 
         // process events
         while (SDL_PollEvent(&event))
         {
+            inputSystem->setSdlEvent(event);
+
             if (event.type == SDL_EVENT_QUIT)
             {
                 running = false;
@@ -174,20 +182,20 @@ int main(int argc, char* argv[])
             }
         }
 
-        // apply physics updates
-        ps->syncPhysicsWithRendering(registry);
+        inputSystem->processInput(registry); // determine commands
+        gameLogicSystem->applyActions(registry); // apply commands logic
+        physicsSystem->syncPhysicsWithRendering(registry); // sync rendering
 
         // clear before rendering
         SDL_SetRenderDrawColor(renderer, 56, 180, 248, SDL_ALPHA_OPAQUE); // light blue
         SDL_RenderClear(renderer);
 
         // render components
-        auto renderView = registry.view<RenderingData>();
-        for (auto [entity, renderData] : renderView.each()) {
-            if (renderData._textureId == TextureId::BALL_TEXTURE) {
-                SDL_RenderTextureRotated(renderer, textures[TextureId::BALL_TEXTURE], nullptr, &renderData._rect, renderData._rotDeg, nullptr, SDL_FLIP_NONE);
+        for (auto [entity, renderData, metaData] : registry.view<RenderingData, MetaData>().each()) {
+            if (metaData._entityType == EntityType::BALL) {
+                SDL_RenderTextureRotated(renderer, textures[EntityType::BALL], nullptr, &renderData._rect, renderData._rotDeg, nullptr, SDL_FLIP_NONE);
             } else {
-                SDL_RenderTexture(renderer, textures[renderData._textureId], nullptr, &renderData._rect);
+                SDL_RenderTexture(renderer, textures[metaData._entityType], nullptr, &renderData._rect);
             }
         }
 
@@ -196,7 +204,7 @@ int main(int argc, char* argv[])
         SDL_Delay(16); // A small delay (approx. 60 FPS)
     }
 
-    ps->destroyWorld();
+    physicsSystem->destroyWorld();
     SDL_DestroyWindow(window);
     SDL_Quit();
 

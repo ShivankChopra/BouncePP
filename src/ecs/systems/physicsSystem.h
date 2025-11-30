@@ -2,7 +2,7 @@
 #define BOUNCEPP_PHYSICS_H
 
 #include <box2d/box2d.h>
-#include <entt/entity/registry.hpp>
+#include <entt/entt.hpp>
 
 #include "../components/components.hpp"
 

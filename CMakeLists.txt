@@ -15,6 +15,10 @@ add_executable(
         src/ecs/factories/factory.cpp
         src/ecs/systems/physicsSystem.h
         src/ecs/systems/physicsSystem.cpp
+        src/ecs/systems/InputSystem.h
+        src/ecs/systems/InputSystem.cpp
+        src/ecs/systems/GameLogic.cpp
+        src/ecs/systems/GameLogic.h
 )
 
 target_link_libraries(BouncePP PRIVATE EnTT::EnTT SDL3::SDL3 box2d::box2d)
