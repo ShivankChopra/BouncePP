@@ -6,7 +6,7 @@
 
 // private
 
-PhysicsData Factory::createPhysicsData(const float x, const float y, const float w, const float h, const b2WorldId worldId, const bool isDynamic) {
+PhysicsData Factory::createPhysicsData(const float x, const float y, const float w, const float h, const b2WorldId worldId, const entt::entity entity, const bool isDynamic) {
     auto data = PhysicsData();
 
     const float center_x_m = px_to_m(x + w / 2.0f);
@@ -19,13 +19,16 @@ PhysicsData Factory::createPhysicsData(const float x, const float y, const float
     }
 
     data._bodyDef.position = { center_x_m, center_y_m };
+    data._bodyDef.userData = reinterpret_cast<void*>(entity);
     data._physicsBodyId = b2CreateBody(worldId, &data._bodyDef);
+
     data._shapeDef = b2DefaultShapeDef();
 
     if (isDynamic) {
         data._shapeDef.density = 40.0f;
-        data._shapeDef.material.friction = 0.4f;
+        data._shapeDef.material.friction = 1.2f;
         data._shapeDef.material.restitution = 0.5f;
+        data._shapeDef.enableContactEvents = true;
     } else {
         data._shapeDef.density = 0.0f;
     }
@@ -52,12 +55,12 @@ MetaData Factory::createMetaData(EntityType entityType, ControlledBy controlled_
 
 // public
 
-const entt::entity& Factory::createBall(entt::registry &registry, const int &x, const int &y, const bool isPlayer) {
+const entt::entity& Factory::createBall(entt::registry &registry, const int &x, const int &y) {
     const auto ball = registry.create();
-    registry.emplace<PhysicsData>(ball, createPhysicsData(x, y, BALL_WIDTH, BALL_HEIGHT, _worldId, true));
+    registry.emplace<PhysicsData>(ball, createPhysicsData(x, y, BALL_WIDTH, BALL_HEIGHT, _worldId, ball, true));
     registry.emplace<RenderingData>(ball, createRenderingData(x, y, BALL_WIDTH, BALL_HEIGHT));
 
-    ControlledBy controlledBy = isPlayer ? ControlledBy::MANUAL : ControlledBy::NOT_CONTROLLED;
+    ControlledBy controlledBy = ControlledBy::MANUAL;
     registry.emplace<MetaData>(ball, createMetaData(EntityType::BALL, controlledBy));
 
     return ball;
@@ -65,7 +68,7 @@ const entt::entity& Factory::createBall(entt::registry &registry, const int &x, 
 
 const entt::entity& Factory::createStep(entt::registry &registry, const int &x, const int &y) {
     const auto step = registry.create();
-    registry.emplace<PhysicsData>(step, createPhysicsData(x, y, PLATFORM_WIDTH, PLATFORM_HEIGHT, _worldId));
+    registry.emplace<PhysicsData>(step, createPhysicsData(x, y, PLATFORM_WIDTH, PLATFORM_HEIGHT, _worldId, step));
     registry.emplace<RenderingData>(step, createRenderingData(x, y, PLATFORM_WIDTH, PLATFORM_HEIGHT));
     registry.emplace<MetaData>(step, createMetaData(EntityType::PLATFORM, ControlledBy::NOT_CONTROLLED));
     return step;

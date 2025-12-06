@@ -7,7 +7,7 @@
 #include <entt/entity/entity.hpp>
 
 void InputSystem::_handleManualInput(const MetaData &metaData) const {
-    switch (_event.key.key) {
+    switch (_inputEvent.key.key) {
         case SDLK_UP :
             metaData._currentCommand = Command::JUMP;
             break;
@@ -33,7 +33,7 @@ void InputSystem::_handleInput(const MetaData &metaData) const {
 }
 
 void InputSystem::setSdlEvent(const SDL_Event &event) {
-    _event = event;
+    _inputEvent = event;
 }
 
 void InputSystem::processInput(const entt::registry &registry) {
@@ -41,5 +41,5 @@ void InputSystem::processInput(const entt::registry &registry) {
     for (auto [entity, metaData] : view.each()) {
         _handleInput(metaData);
     }
-    _event = {}; // reset event
+    _inputEvent = {}; // reset event
 }

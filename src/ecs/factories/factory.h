@@ -23,7 +23,7 @@ private:
 
     b2WorldId _worldId;
 
-    PhysicsData createPhysicsData(const float x, const float y, const float w, const float h, const b2WorldId worldId, const bool isDynamic = false);
+    PhysicsData createPhysicsData(const float x, const float y, const float w, const float h, const b2WorldId worldId, const entt::entity entity, const bool isDynamic = false);
 
     RenderingData createRenderingData(const float x, const float y, const float w, const float h);
 
@@ -32,7 +32,7 @@ private:
 public:
     explicit Factory(const std::vector<SDL_Texture*> &textures, const b2WorldId &worldId) : _textures(textures), _worldId(worldId) {};
 
-    const entt::entity& createBall(entt::registry &registry, const int &x, const int &y, bool isPlayer = false);
+    const entt::entity& createBall(entt::registry &registry, const int &x, const int &y);
 
     const entt::entity& createStep(entt::registry &registry, const int &x, const int &y);
 };

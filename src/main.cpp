@@ -115,15 +115,8 @@ int main(int argc, char* argv[])
     // factory
     auto factory = new Factory(textures, physicsSystem->getWorldId());
 
-    // create balls
-    bool isPlayer = true;
-    constexpr int NUM_BALLS = 10;
-    for (int i = 0; i < NUM_BALLS; i++) {
-        int x = 500 + i * (BALL_WIDTH + 10);
-        int y = 400;
-        factory->createBall(registry, x, y, isPlayer);
-        isPlayer = false;
-    }
+    // create player ball
+    factory->createBall(registry, 500, 400);
 
     // create platforms
     constexpr int NUM_STEPS = 16;
@@ -182,8 +175,9 @@ int main(int argc, char* argv[])
             }
         }
 
+        gameLogicSystem->checkPhysicsEvents(physicsSystem->getWorldId(), registry);
         inputSystem->processInput(registry); // determine commands
-        gameLogicSystem->applyActions(registry); // apply commands logic
+        gameLogicSystem->applyInputActions(registry); // apply commands logic
         physicsSystem->syncPhysicsWithRendering(registry); // sync rendering
 
         // clear before rendering

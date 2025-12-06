@@ -15,7 +15,7 @@ using namespace  components;
 class InputSystem {
 
 private:
-    SDL_Event _event;
+    SDL_Event _inputEvent;
     // void _handleNetworkInput();
     // void _handleAiInput();
     void _handleManualInput(const MetaData &metaData) const;
