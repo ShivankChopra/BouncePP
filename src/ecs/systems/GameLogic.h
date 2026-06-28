@@ -26,6 +26,7 @@ private:
     void jump(const PhysicsData &physicsData) const;
     void moveLeft(const PhysicsData &physicsData) const;
     void moveRight(const PhysicsData &physicsData) const;
+    void resetPosition(const PhysicsData &physicsData, const float x, const float y, const float w, const float h) const;
 
 public:
     void applyInputActions(const entt::registry &registry) const;

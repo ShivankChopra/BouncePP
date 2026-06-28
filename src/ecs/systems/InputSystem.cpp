@@ -17,6 +17,9 @@ void InputSystem::_handleManualInput(const MetaData &metaData) const {
         case SDLK_RIGHT:
             metaData._currentCommand = Command::MOVE_RIGHT;
             break;
+        case SDLK_R:
+            metaData._currentCommand = Command::RESET_POSITION;
+            break;
         default:
             metaData._currentCommand = Command::EMPTY_COMMAND;
     }

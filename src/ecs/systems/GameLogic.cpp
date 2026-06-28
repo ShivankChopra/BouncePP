@@ -4,6 +4,8 @@
 
 #include "GameLogic.h"
 
+#include "../factories/factory.h"
+
 void GameLogic::processPlatformCollision(bool isBeginCollision) {
     if (isBeginCollision) {
         allowJump = true;
@@ -43,6 +45,19 @@ void GameLogic::moveRight(const PhysicsData &physicsData) const {
     b2Body_ApplyLinearImpulseToCenter(physicsData._physicsBodyId, impulse, true);
 }
 
+void GameLogic::resetPosition(const PhysicsData &physicsData, const float x, const float y, const float w, const float h) const {
+    const b2Vec2 center = {
+        px_to_m(x + w / 2.0f),
+        px_to_m(y + h / 2.0f)
+    };
+
+    b2Body_SetTransform(physicsData._physicsBodyId, center, b2MakeRot(0.0f));
+    b2Body_SetLinearVelocity(physicsData._physicsBodyId, {0.0f, 0.0f});
+    b2Body_SetAngularVelocity(physicsData._physicsBodyId, 0.0f);
+    b2Body_SetAwake(physicsData._physicsBodyId, true);
+}
+
+
 void GameLogic::applyInputActions(const entt::registry &registry) const {
     auto view = registry.view<PhysicsData, MetaData>();
     for (auto [entity, physicsData, metaData] : view.each()) {
@@ -55,6 +70,9 @@ void GameLogic::applyInputActions(const entt::registry &registry) const {
                 break;
             case Command::MOVE_RIGHT:
                 moveRight(physicsData);
+                break;
+            case Command::RESET_POSITION:
+                resetPosition(physicsData, 500.0f, 400.0f, BALL_WIDTH, BALL_HEIGHT);
                 break;
         }
 

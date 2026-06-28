@@ -153,9 +153,6 @@ int main(int argc, char* argv[])
 
     while (running)
     {
-        // update physics world
-        physicsSystem->updatePhysics();
-
         // process events
         while (SDL_PollEvent(&event))
         {
@@ -175,9 +172,12 @@ int main(int argc, char* argv[])
             }
         }
 
-        gameLogicSystem->checkPhysicsEvents(physicsSystem->getWorldId(), registry);
         inputSystem->processInput(registry); // determine commands
         gameLogicSystem->applyInputActions(registry); // apply commands logic
+
+        gameLogicSystem->checkPhysicsEvents(physicsSystem->getWorldId(), registry);
+
+        physicsSystem->updatePhysics(); // update physics world
         physicsSystem->syncPhysicsWithRendering(registry); // sync rendering
 
         // clear before rendering

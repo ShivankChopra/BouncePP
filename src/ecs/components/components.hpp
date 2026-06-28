@@ -24,7 +24,8 @@ namespace components {
         JUMP = 0,
         MOVE_LEFT = 1,
         MOVE_RIGHT = 2,
-        EMPTY_COMMAND = 3
+        RESET_POSITION = 3,
+        EMPTY_COMMAND = 4
     };
 
     struct PhysicsData {

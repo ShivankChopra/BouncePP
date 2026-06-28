@@ -27,7 +27,7 @@ PhysicsData Factory::createPhysicsData(const float x, const float y, const float
     if (isDynamic) {
         data._shapeDef.density = 40.0f;
         data._shapeDef.material.friction = 1.2f;
-        data._shapeDef.material.restitution = 0.5f;
+        data._shapeDef.material.restitution = 0.25f;
         data._shapeDef.enableContactEvents = true;
     } else {
         data._shapeDef.density = 0.0f;
